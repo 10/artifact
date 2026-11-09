@@ -33,7 +33,6 @@ ENV ARTIFACT_ADDR=:8080 \
     ARTIFACT_DATA_DIR=/data
 
 EXPOSE 8080
-VOLUME ["/data"]
 USER 65532:65532
 
 # No shell and no curl in this image, so the health check belongs to the

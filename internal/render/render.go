@@ -128,5 +128,5 @@ func plainText(n ast.Node, src []byte) string {
 func isBreak(tag []byte) bool {
 	rest, ok := bytes.CutPrefix(bytes.ToLower(tag), []byte("<br"))
 
-	return ok && len(rest) > 0 && bytes.IndexByte([]byte(">/ \t\n"), rest[0]) >= 0
+	return ok && len(rest) > 0 && bytes.IndexByte([]byte(">/ \t\r\n"), rest[0]) >= 0
 }

@@ -86,7 +86,7 @@ The exit code says what to do. Read it before retrying.
 | --- | --- | --- |
 | `0` | Published | Continue |
 | `1` | I/O error, dropped connection, or server 5xx | Confirm the path exists and is readable. Retry once on a dropped connection or a 5xx — the CLI does not retry on its own |
-| `2` | No endpoint or token configured | Report that Artifact is not set up here — a hostname cannot be guessed |
+| `2` | Bad usage, or no endpoint or token configured | Read stderr: fix the command, or report that Artifact is not set up here — a hostname cannot be guessed |
 | `3` | Token rejected | Stop. Every further call fails identically |
 | `4` | No such artifact | Check the ID or slug |
 

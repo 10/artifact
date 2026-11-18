@@ -969,6 +969,74 @@ func TestServeVersionIsFrozen(t *testing.T) {
 	}
 }
 
+func TestServeLatestRevalidatesAfterUpdate(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	first := h.upload("notes.txt", []byte("one"), nil)
+
+	resp, _ := h.get(first.URL)
+
+	if got := resp.Header.Get("Cache-Control"); got != "no-cache" {
+		t.Errorf("latest Cache-Control = %q, want no-cache", got)
+	}
+
+	etag := resp.Header.Get("ETag")
+	if etag == "" {
+		t.Fatal("latest response has no ETag")
+	}
+
+	lastModified := resp.Header.Get("Last-Modified")
+
+	resp, raw := h.send(h.authed(http.MethodPut,
+		"/api/artifacts/"+first.ID+"?filename=notes.txt", strings.NewReader("two")))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("update: status %d (body %s)", resp.StatusCode, raw)
+	}
+
+	// A browser holding version 1 sends both validators. The two versions can
+	// share a Last-Modified second, so only the ETag can tell them apart.
+	req := h.request(http.MethodGet, pathOf(t, first.URL), nil)
+	req.Header.Set("If-None-Match", etag)
+	req.Header.Set("If-Modified-Since", lastModified)
+
+	resp, body := h.send(req)
+	if resp.StatusCode != http.StatusOK || string(body) != "two" {
+		t.Fatalf("revalidating a stale copy = %d %q, want 200 \"two\"", resp.StatusCode, body)
+	}
+
+	etag = resp.Header.Get("ETag")
+
+	req = h.request(http.MethodGet, pathOf(t, first.URL), nil)
+	req.Header.Set("If-None-Match", etag)
+
+	if resp, _ = h.send(req); resp.StatusCode != http.StatusNotModified {
+		t.Errorf("revalidating a current copy = %d, want 304", resp.StatusCode)
+	}
+
+	// Same bytes under a new name is a new response: it now renders as HTML.
+	resp, raw = h.send(h.authed(http.MethodPut,
+		"/api/artifacts/"+first.ID+"?filename=notes.html", strings.NewReader("two")))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("rename update: status %d (body %s)", resp.StatusCode, raw)
+	}
+
+	req = h.request(http.MethodGet, pathOf(t, first.URL), nil)
+	req.Header.Set("If-None-Match", etag)
+
+	resp, _ = h.send(req)
+	if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != "text/html; charset=utf-8" {
+		t.Errorf("revalidating after a rename = %d %q, want 200 text/html",
+			resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+
+	// A pinned version never changes, so ordinary caching is left alone.
+	resp, _ = h.get(first.VersionURL)
+	if got := resp.Header.Get("Cache-Control"); got != "" {
+		t.Errorf("@1 Cache-Control = %q, want none", got)
+	}
+}
+
 // ---------------------------------------------------------------- range
 
 func TestRangeRequest(t *testing.T) {

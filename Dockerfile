@@ -29,8 +29,10 @@ FROM gcr.io/distroless/static:nonroot
 COPY --from=build /out/artifactd /artifactd
 COPY --from=build --chown=65532:65532 /out/data /data
 
-ENV ARTIFACT_ADDR=:8080 \
-    ARTIFACT_DATA_DIR=/data
+# No ARTIFACT_ADDR: set here it would always override PORT, which platforms
+# such as Railway use to assign the port. Unset, the server takes PORT, then
+# falls back to :8080.
+ENV ARTIFACT_DATA_DIR=/data
 
 EXPOSE 8080
 USER 65532:65532

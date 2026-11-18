@@ -115,10 +115,48 @@ func TestMarkdownPageIsSelfContained(t *testing.T) {
 		}
 	}
 
-	for _, required := range []string{"<!doctype html>", "prefers-color-scheme", "<title>plan.md</title>"} {
+	for _, required := range []string{"<!doctype html>", "prefers-color-scheme", "<title>Title</title>"} {
 		if !strings.Contains(page, required) {
 			t.Errorf("page template missing %q", required)
 		}
+	}
+}
+
+// The title is what a browser tab, history, and a chat app's link preview
+// show, so it should name the document rather than the file it came from.
+func TestMarkdownTitle(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		src  string
+		want string
+	}{
+		"first h1":              {"intro\n\n# Release plan\n\n# Later\n", "Release plan"},
+		"inline markup dropped": {"# Ship **v2** with `ETag` & [docs](x)\n", "Ship v2 with ETag &amp; docs"},
+		"setext h1":             {"Release\nplan\n===\n", "Release plan"},
+		"hard line break":       {"Release  \nplan\n===\n", "Release plan"},
+		"inline br":             {"# Release<br>plan, <b>bold</b>ly\n", "Release plan, boldly"},
+		"br-like tag":           {"# pre<brand-name>fix</brand-name> <BR/>end\n", "prefix end"},
+		"br across CRLF":        {"Release<br\r\nclass=x>plan\r\n===\r\n", "Release plan"},
+		"escape kept literal":   {"# Q\\&copy;A &copy;\n", "Q&amp;copy;A ©"},
+		"empty h1 skipped":      {"#\n\n# Second\n", "Second"},
+		"no h1 uses filename":   {"**daily finds**\n\n## Section\n", "notes.md"},
+		"nested h1 ignored":     {"> # Quoted\n", "notes.md"},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			var out bytes.Buffer
+			if err := render.Markdown(&out, "notes.md", []byte(tc.src)); err != nil {
+				t.Fatalf("Markdown: %v", err)
+			}
+
+			if want := "<title>" + tc.want + "</title>"; !strings.Contains(out.String(), want) {
+				t.Errorf("page does not contain %q", want)
+			}
+		})
 	}
 }
 

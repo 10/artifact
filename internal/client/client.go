@@ -2,6 +2,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -166,13 +167,16 @@ const Stdin = "-"
 // prefers: no multipart framing, no buffering.
 func sendFile[T any](ctx context.Context, c *Client, method, target, path string) (*T, []byte, error) {
 	if path == Stdin {
-		spooled, err := spoolStdin()
+		// Read in full before sending: streaming would put the producing
+		// command's whole run under the client's timeout and cut off a long
+		// build along with its log. Held in memory, so an interrupted run
+		// leaves nothing on disk.
+		body, err := io.ReadAll(os.Stdin)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("read stdin: %w", err)
 		}
-		defer os.Remove(spooled)
 
-		path = spooled
+		return sendBody[T](ctx, c, method, target, bytes.NewReader(body), int64(len(body)))
 	}
 
 	// The *PathError from os already names the operation and the path.
@@ -191,38 +195,19 @@ func sendFile[T any](ctx context.Context, c *Client, method, target, path string
 		return nil, nil, fmt.Errorf("%s is a directory", path)
 	}
 
-	req, err := c.request(ctx, method, target, f)
+	return sendBody[T](ctx, c, method, target, f, info.Size())
+}
+
+func sendBody[T any](ctx context.Context, c *Client, method, target string, body io.Reader, size int64) (*T, []byte, error) {
+	req, err := c.request(ctx, method, target, body)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	req.ContentLength = info.Size()
+	req.ContentLength = size
 	req.Header.Set("Content-Type", "application/octet-stream")
 
 	return decode[T](c.do(req))
-}
-
-// spoolStdin copies standard input to a temporary file and returns its path.
-// Streaming it instead would put the producing command's whole run under the
-// client's timeout, cutting off a long build along with its log.
-func spoolStdin() (string, error) {
-	f, err := os.CreateTemp("", "artifact-stdin-*")
-	if err != nil {
-		return "", fmt.Errorf("spool stdin: %w", err)
-	}
-
-	_, err = io.Copy(f, os.Stdin)
-	if closeErr := f.Close(); err == nil {
-		err = closeErr
-	}
-
-	if err != nil {
-		os.Remove(f.Name())
-
-		return "", fmt.Errorf("spool stdin: %w", err)
-	}
-
-	return f.Name(), nil
 }
 
 func (c *Client) request(ctx context.Context, method, target string, body io.Reader) (*http.Request, error) {

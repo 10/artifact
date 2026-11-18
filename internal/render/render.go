@@ -109,7 +109,7 @@ func plainText(n ast.Node, src []byte) string {
 			// Other inline tags only style their text; a <br> breaks the line.
 			if n.Segments.Len() > 0 {
 				tag := n.Segments.At(0)
-				if bytes.HasPrefix(bytes.ToLower(tag.Value(src)), []byte("<br")) {
+				if isBreak(tag.Value(src)) {
 					_ = w.WriteByte(' ')
 				}
 			}
@@ -121,4 +121,12 @@ func plainText(n ast.Node, src []byte) string {
 	_ = w.Flush()
 
 	return strings.Join(strings.Fields(stdhtml.UnescapeString(buf.String())), " ")
+}
+
+// isBreak reports whether a raw inline tag is <br>, not merely a tag whose
+// name starts with "br".
+func isBreak(tag []byte) bool {
+	rest, ok := bytes.CutPrefix(bytes.ToLower(tag), []byte("<br"))
+
+	return ok && len(rest) > 0 && bytes.IndexByte([]byte(">/ \t\n"), rest[0]) >= 0
 }

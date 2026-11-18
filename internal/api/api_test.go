@@ -803,6 +803,10 @@ func TestServeContentTypeTable(t *testing.T) {
 			if got := resp.Header.Get("X-Content-Type-Options"); got != "nosniff" {
 				t.Errorf("X-Content-Type-Options = %q, want nosniff", got)
 			}
+
+			if got := resp.Header.Get("X-Robots-Tag"); got != "noindex" {
+				t.Errorf("X-Robots-Tag = %q, want noindex", got)
+			}
 		})
 	}
 }

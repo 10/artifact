@@ -77,6 +77,10 @@ func (s *server) writeArtifact(w http.ResponseWriter, r *http.Request, id string
 
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 
+	// Public to whoever holds the link, not to whoever searches: a link that
+	// gets indexed undoes the obstacle random IDs put in front of enumeration.
+	w.Header().Set("X-Robots-Tag", "noindex")
+
 	markdown := content.IsMarkdown(v.Filename)
 	if markdown && !raw {
 		s.writeMarkdown(w, v, f)

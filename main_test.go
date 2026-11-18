@@ -8,8 +8,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/10/artifact/internal/api"
 	"github.com/10/artifact/internal/store"
@@ -185,6 +187,56 @@ func TestUpPublishesStandardInput(t *testing.T) {
 
 	if resp.Filename != "test.log" || resp.Size != int64(len(log)) || resp.ContentType != "text/plain; charset=utf-8" {
 		t.Errorf("published %+v, want test.log, %d bytes, text/plain", resp, len(log))
+	}
+}
+
+// A piped log can carry secrets, so no copy of it may sit on disk under a
+// name, even while the input is still arriving.
+func TestStandardInputLeavesNothingOnDisk(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows cannot unlink an open file")
+	}
+
+	c := newCLI(t)
+	tmp := t.TempDir()
+	t.Setenv("TMPDIR", tmp)
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+
+	saved := os.Stdin
+	os.Stdin = r
+
+	t.Cleanup(func() {
+		os.Stdin = saved
+		r.Close()
+	})
+
+	done := make(chan int, 1)
+
+	go func() {
+		code, _, _ := c.run(c.connected("--filename", "build.log", "-")...)
+		done <- code
+	}()
+
+	if _, err := w.WriteString("partial log\n"); err != nil {
+		t.Fatalf("write stdin: %v", err)
+	}
+
+	for range 30 {
+		if entries, _ := os.ReadDir(tmp); len(entries) > 0 {
+			t.Fatalf("input is on disk while still arriving: %s", entries[0].Name())
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	w.Close()
+
+	if code := <-done; code != exitOK {
+		t.Fatalf("exit = %d, want 0", code)
 	}
 }
 

@@ -2,7 +2,6 @@
 package client
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -167,16 +166,18 @@ const Stdin = "-"
 // prefers: no multipart framing, no buffering.
 func sendFile[T any](ctx context.Context, c *Client, method, target, path string) (*T, []byte, error) {
 	if path == Stdin {
-		// Read in full before sending: streaming would put the producing
-		// command's whole run under the client's timeout and cut off a long
-		// build along with its log. Held in memory, so an interrupted run
-		// leaves nothing on disk.
-		body, err := io.ReadAll(os.Stdin)
+		spool, cleanup, err := spoolStdin()
 		if err != nil {
-			return nil, nil, fmt.Errorf("read stdin: %w", err)
+			return nil, nil, err
+		}
+		defer cleanup()
+
+		info, err := spool.Stat()
+		if err != nil {
+			return nil, nil, fmt.Errorf("spool stdin: %w", err)
 		}
 
-		return sendBody[T](ctx, c, method, target, bytes.NewReader(body), int64(len(body)))
+		return sendBody[T](ctx, c, method, target, spool, info.Size())
 	}
 
 	// The *PathError from os already names the operation and the path.
@@ -196,6 +197,44 @@ func sendFile[T any](ctx context.Context, c *Client, method, target, path string
 	}
 
 	return sendBody[T](ctx, c, method, target, f, info.Size())
+}
+
+// spoolStdin copies standard input to a temporary file and returns it
+// rewound. Sending input as it arrives would put the producing command's
+// whole run under the client's timeout, cutting off a long build along with
+// its log, and holding it in memory would cost several times its size.
+//
+// The file is unlinked before any input reaches it, so even an interrupted
+// run leaves no copy of the log behind. Windows cannot unlink an open file;
+// there, cleanup removes it after closing.
+func spoolStdin() (*os.File, func(), error) {
+	f, err := os.CreateTemp("", "artifact-stdin-*")
+	if err != nil {
+		return nil, nil, fmt.Errorf("spool stdin: %w", err)
+	}
+
+	unlinked := os.Remove(f.Name()) == nil
+
+	cleanup := func() {
+		f.Close()
+
+		if !unlinked {
+			os.Remove(f.Name())
+		}
+	}
+
+	_, err = io.Copy(f, os.Stdin)
+	if err == nil {
+		_, err = f.Seek(0, io.SeekStart)
+	}
+
+	if err != nil {
+		cleanup()
+
+		return nil, nil, fmt.Errorf("spool stdin: %w", err)
+	}
+
+	return f, cleanup, nil
 }
 
 func sendBody[T any](ctx context.Context, c *Client, method, target string, body io.Reader, size int64) (*T, []byte, error) {

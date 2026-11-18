@@ -162,15 +162,16 @@ func (c *Client) Delete(ctx context.Context, id string) error {
 // sendFile streams a local file as a raw request body, the form the API
 // prefers: no multipart framing, no buffering.
 func sendFile[T any](ctx context.Context, c *Client, method, target, path string) (*T, []byte, error) {
+	// The *PathError from os already names the operation and the path.
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, nil, fmt.Errorf("open %s: %w", path, err)
+		return nil, nil, err
 	}
 	defer f.Close()
 
 	info, err := f.Stat()
 	if err != nil {
-		return nil, nil, fmt.Errorf("stat %s: %w", path, err)
+		return nil, nil, err
 	}
 
 	if info.IsDir() {

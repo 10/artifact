@@ -94,7 +94,7 @@ func plainText(n ast.Node, src []byte) string {
 
 			b.Write(value)
 
-			if n.SoftLineBreak() {
+			if n.SoftLineBreak() || n.HardLineBreak() {
 				b.WriteByte(' ')
 			}
 		case *ast.String:

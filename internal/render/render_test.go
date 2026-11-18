@@ -135,6 +135,7 @@ func TestMarkdownTitle(t *testing.T) {
 		"inline markup dropped": {"# Ship **v2** with `ETag` & [docs](x)\n", "Ship v2 with ETag &amp; docs"},
 		"setext h1":             {"Release\nplan\n===\n", "Release plan"},
 		"hard line break":       {"Release  \nplan\n===\n", "Release plan"},
+		"escape kept literal":   {"# Q\\&copy;A &copy;\n", "Q&amp;copy;A ©"},
 		"empty h1 skipped":      {"#\n\n# Second\n", "Second"},
 		"no h1 uses filename":   {"**daily finds**\n\n## Section\n", "notes.md"},
 		"nested h1 ignored":     {"> # Quoted\n", "notes.md"},

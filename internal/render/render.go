@@ -6,9 +6,11 @@
 package render
 
 import (
+	"bufio"
 	"bytes"
 	"embed"
 	"fmt"
+	stdhtml "html"
 	"html/template"
 	"io"
 	"strings"
@@ -18,7 +20,6 @@ import (
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
-	"github.com/yuin/goldmark/util"
 )
 
 //go:embed page.html
@@ -78,33 +79,38 @@ func headingTitle(doc ast.Node, src []byte) string {
 }
 
 func plainText(n ast.Node, src []byte) string {
-	var b strings.Builder
+	var buf bytes.Buffer
+
+	w := bufio.NewWriter(&buf)
 
 	_ = ast.Walk(n, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
 
+		// The renderer's own writer, so backslash escapes and entities read
+		// in the title exactly as they do in the visible heading.
 		switch n := n.(type) {
 		case *ast.Text:
-			value := n.Value(src)
-			if !n.IsRaw() {
-				value = util.ResolveEntityNames(util.ResolveNumericReferences(util.UnescapePunctuations(value)))
+			if n.IsRaw() {
+				html.DefaultWriter.RawWrite(w, n.Value(src))
+			} else {
+				html.DefaultWriter.Write(w, n.Value(src))
 			}
-
-			b.Write(value)
 
 			if n.SoftLineBreak() || n.HardLineBreak() {
-				b.WriteByte(' ')
+				_ = w.WriteByte(' ')
 			}
 		case *ast.String:
-			b.Write(n.Value)
+			html.DefaultWriter.RawWrite(w, n.Value)
 		case *ast.AutoLink:
-			b.Write(n.Label(src))
+			html.DefaultWriter.RawWrite(w, n.Label(src))
 		}
 
 		return ast.WalkContinue, nil
 	})
 
-	return strings.TrimSpace(b.String())
+	_ = w.Flush()
+
+	return strings.TrimSpace(stdhtml.UnescapeString(buf.String()))
 }

@@ -105,6 +105,14 @@ func plainText(n ast.Node, src []byte) string {
 			html.DefaultWriter.RawWrite(w, n.Value)
 		case *ast.AutoLink:
 			html.DefaultWriter.RawWrite(w, n.Label(src))
+		case *ast.RawHTML:
+			// Other inline tags only style their text; a <br> breaks the line.
+			if n.Segments.Len() > 0 {
+				tag := n.Segments.At(0)
+				if bytes.HasPrefix(bytes.ToLower(tag.Value(src)), []byte("<br")) {
+					_ = w.WriteByte(' ')
+				}
+			}
 		}
 
 		return ast.WalkContinue, nil
@@ -112,5 +120,5 @@ func plainText(n ast.Node, src []byte) string {
 
 	_ = w.Flush()
 
-	return strings.TrimSpace(stdhtml.UnescapeString(buf.String()))
+	return strings.Join(strings.Fields(stdhtml.UnescapeString(buf.String())), " ")
 }

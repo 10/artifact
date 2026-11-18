@@ -342,6 +342,22 @@ func TestExitCodes(t *testing.T) {
 	}
 }
 
+// The one line on stderr is what an agent reports, so it should name the
+// missing file once rather than repeat the path.
+func TestMissingFileIsNamedOnce(t *testing.T) {
+	c := newCLI(t)
+	missing := filepath.Join(t.TempDir(), "absent.png")
+
+	code, stdout, stderr := c.run(c.connected(missing)...)
+	if code != exitError || stdout != "" {
+		t.Fatalf("exit = %d, stdout = %q; want 1 and nothing", code, stdout)
+	}
+
+	if n := strings.Count(stderr, missing); n != 1 {
+		t.Errorf("stderr names the path %d times, want once: %q", n, stderr)
+	}
+}
+
 // ---------------------------------------------------------------- precedence
 
 func TestConfigFileSuppliesEndpointAndToken(t *testing.T) {

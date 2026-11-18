@@ -982,8 +982,8 @@ func TestServeLatestRevalidatesAfterUpdate(t *testing.T) {
 	}
 
 	etag := resp.Header.Get("ETag")
-	if etag != strconv.Quote(first.SHA256) {
-		t.Fatalf("ETag = %q, want the quoted sha256 %q", etag, first.SHA256)
+	if etag == "" {
+		t.Fatal("latest response has no ETag")
 	}
 
 	lastModified := resp.Header.Get("Last-Modified")
@@ -1005,11 +1005,29 @@ func TestServeLatestRevalidatesAfterUpdate(t *testing.T) {
 		t.Fatalf("revalidating a stale copy = %d %q, want 200 \"two\"", resp.StatusCode, body)
 	}
 
+	etag = resp.Header.Get("ETag")
+
 	req = h.request(http.MethodGet, pathOf(t, first.URL), nil)
-	req.Header.Set("If-None-Match", resp.Header.Get("ETag"))
+	req.Header.Set("If-None-Match", etag)
 
 	if resp, _ = h.send(req); resp.StatusCode != http.StatusNotModified {
 		t.Errorf("revalidating a current copy = %d, want 304", resp.StatusCode)
+	}
+
+	// Same bytes under a new name is a new response: it now renders as HTML.
+	resp, raw = h.send(h.authed(http.MethodPut,
+		"/api/artifacts/"+first.ID+"?filename=notes.html", strings.NewReader("two")))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("rename update: status %d (body %s)", resp.StatusCode, raw)
+	}
+
+	req = h.request(http.MethodGet, pathOf(t, first.URL), nil)
+	req.Header.Set("If-None-Match", etag)
+
+	resp, _ = h.send(req)
+	if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != "text/html; charset=utf-8" {
+		t.Errorf("revalidating after a rename = %d %q, want 200 text/html",
+			resp.StatusCode, resp.Header.Get("Content-Type"))
 	}
 
 	// A pinned version never changes, so ordinary caching is left alone.

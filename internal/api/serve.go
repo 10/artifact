@@ -93,8 +93,10 @@ func (s *server) writeArtifact(w http.ResponseWriter, r *http.Request, id string
 	w.Header().Set("Content-Disposition", content.ContentDisposition(content.Disposition(contentType), v.Filename))
 
 	// Last-Modified has one-second resolution, so it cannot tell apart two
-	// versions published in the same second. The digest can.
-	w.Header().Set("ETag", strconv.Quote(v.SHA256))
+	// versions published in the same second. The digest alone is not enough
+	// either: an update can keep the bytes and change the filename, and with
+	// it the content type. A version never changes, so its number does it.
+	w.Header().Set("ETag", strconv.Quote(strconv.Itoa(v.N)+"-"+v.SHA256))
 
 	// ServeContent supplies Range, 206, 416, If-Range, and Last-Modified from
 	// the standard library. Reimplementing that is what breaks video seeking.

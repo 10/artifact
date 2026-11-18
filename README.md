@@ -127,8 +127,9 @@ artifactd
 ```
 
 Both are required and validated at startup. Optional: `ARTIFACT_ADDR`
-(`:8080`), `ARTIFACT_DATA_DIR` (`/data`), `ARTIFACT_DB`,
-`ARTIFACT_MAX_UPLOAD_SIZE` (100 MiB), `ARTIFACT_LOG_LEVEL` (`info`).
+(`:8080`, or `:$PORT` when `PORT` is set), `ARTIFACT_DATA_DIR` (`/data`),
+`ARTIFACT_DB`, `ARTIFACT_MAX_UPLOAD_SIZE` (100 MiB), `ARTIFACT_LOG_LEVEL`
+(`info`).
 
 Logs are JSON on stdout, one line per request, never the token or a body.
 `SIGTERM` drains in-flight requests, then closes the database.

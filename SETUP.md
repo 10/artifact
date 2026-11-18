@@ -54,7 +54,7 @@ on the first request.
 | --- | --- | --- | --- |
 | `ARTIFACT_TOKEN` | **Yes** | — | Refuses to start if unset or shorter than 32 characters |
 | `ARTIFACT_BASE_URL` | **Yes** | — | Public origin, e.g. `https://artifact.example.com`. Used to build every URL in every response; a wrong value yields unreachable links |
-| `ARTIFACT_ADDR` | No | `:8080` | Listen address |
+| `ARTIFACT_ADDR` | No | `:8080` | Listen address. When unset and `PORT` is set, as Railway and similar platforms do, `:$PORT` |
 | `ARTIFACT_DATA_DIR` | No | `/data` | Holds `artifact.db` and `blobs/`. Must be writable at startup |
 | `ARTIFACT_DB` | No | `{DATA_DIR}/artifact.db` | Override only for unusual layouts |
 | `ARTIFACT_MAX_UPLOAD_SIZE` | No | `104857600` (100 MiB) | Bytes |

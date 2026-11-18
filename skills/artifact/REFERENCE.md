@@ -86,12 +86,15 @@ FILE="$1"
 curl -sS --fail-with-body -X POST \
   -H "Authorization: Bearer $ARTIFACT_TOKEN" \
   --data-binary "@$FILE" \
-  "$ARTIFACT_ENDPOINT/api/upload?filename=$(basename "$FILE")" \
+  --url-query "filename=$(basename "$FILE")" \
+  "$ARTIFACT_ENDPOINT/api/upload" \
   | jq -r '.url'
 ```
 
-Add `&slug=daily-report` for a stable URL. To publish a new version, `PUT` to
-`/api/artifacts/{id}` with the same body form.
+`--url-query` (curl 7.87+) encodes the name, so a screenshot called
+`Screenshot 2026-11-17 at 9.41.07 PM.png` still uploads. Add
+`--url-query slug=daily-report` for a stable URL. To publish a new version,
+`PUT` to `/api/artifacts/{id}` with the same body form.
 
 ## API error codes
 

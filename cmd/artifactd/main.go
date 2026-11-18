@@ -137,6 +137,17 @@ func loadConfig() (*config, error) {
 		logLevel:  slog.LevelInfo,
 	}
 
+	// Railway and similar platforms assign the port through PORT. An explicit
+	// ARTIFACT_ADDR still wins.
+	if raw := os.Getenv("PORT"); raw != "" && os.Getenv("ARTIFACT_ADDR") == "" {
+		port, err := strconv.Atoi(raw)
+		if err != nil || port < 1 || port > 65535 {
+			return nil, fmt.Errorf("PORT must be a TCP port number, got %q", raw)
+		}
+
+		cfg.addr = ":" + strconv.Itoa(port)
+	}
+
 	cfg.token = os.Getenv("ARTIFACT_TOKEN")
 	if len(cfg.token) < minTokenLength {
 		return nil, fmt.Errorf("ARTIFACT_TOKEN must be set and at least %d characters", minTokenLength)

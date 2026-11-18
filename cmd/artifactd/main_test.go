@@ -23,6 +23,7 @@ func setEnv(t *testing.T, overrides map[string]string) {
 		"ARTIFACT_DB":              "",
 		"ARTIFACT_MAX_UPLOAD_SIZE": "",
 		"ARTIFACT_LOG_LEVEL":       "",
+		"PORT":                     "",
 	}
 
 	maps.Copy(env, overrides)
@@ -97,6 +98,29 @@ func TestLoadConfigOverrides(t *testing.T) {
 	}
 }
 
+func TestLoadConfigPort(t *testing.T) {
+	setEnv(t, map[string]string{"PORT": "3000"})
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+
+	if cfg.addr != ":3000" {
+		t.Errorf("addr = %q, want :3000 from PORT", cfg.addr)
+	}
+
+	setEnv(t, map[string]string{"PORT": "3000", "ARTIFACT_ADDR": "127.0.0.1:9000"})
+
+	if cfg, err = loadConfig(); err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+
+	if cfg.addr != "127.0.0.1:9000" {
+		t.Errorf("addr = %q, want ARTIFACT_ADDR to win over PORT", cfg.addr)
+	}
+}
+
 func TestLoadConfigRejectsBadEnvironment(t *testing.T) {
 	cases := map[string]struct {
 		overrides map[string]string
@@ -129,6 +153,10 @@ func TestLoadConfigRejectsBadEnvironment(t *testing.T) {
 		"zero max upload": {
 			overrides: map[string]string{"ARTIFACT_MAX_UPLOAD_SIZE": "0"},
 			mentions:  "ARTIFACT_MAX_UPLOAD_SIZE",
+		},
+		"non-numeric port": {
+			overrides: map[string]string{"PORT": "http"},
+			mentions:  "PORT",
 		},
 		"unknown log level": {
 			overrides: map[string]string{"ARTIFACT_LOG_LEVEL": "chatty"},

@@ -51,7 +51,7 @@ first 512 bytes, then to `application/octet-stream`, which downloads.
 | `.html` `.htm` | `text/html` | The bytes exactly as uploaded |
 | `.png` `.jpg` `.jpeg` `.gif` `.webp` `.avif` `.svg` | `image/*` | Inline |
 | `.mp4` `.webm` `.mov` | `video/*` | Inline, seekable |
-| `.mp3` `.wav` `.m4a` | `audio/*` | Inline, seekable |
+| `.mp3` `.wav` `.m4a` `.caf` | `audio/*` | Inline, seekable |
 | `.pdf` | `application/pdf` | Inline |
 | `.txt` `.log` `.json` `.yaml` `.yml` `.toml` `.csv` `.xml` `.go` `.py` `.ts` `.js` `.sh` `.sql` `.rs` `.c` `.h` | `text/plain` | Inline |
 | anything else | `application/octet-stream` | Downloads |

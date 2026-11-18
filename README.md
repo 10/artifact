@@ -93,7 +93,7 @@ The extension decides. Unknown ones get sniffed, then fall back to a download.
 | `.md` `.markdown` | Rendered page — GFM tables, task lists, code blocks |
 | `.html` `.htm` | Served byte-for-byte |
 | `.png` `.jpg` `.jpeg` `.gif` `.webp` `.avif` `.svg` | Inline image |
-| `.mp4` `.webm` `.mov` `.mp3` `.wav` `.m4a` | Inline, seekable |
+| `.mp4` `.webm` `.mov` `.mp3` `.wav` `.m4a` `.caf` | Inline, seekable |
 | `.pdf` | Inline |
 | `.txt` `.log` `.json` `.yaml` `.csv` `.xml` `.go` `.py` `.ts` `.js` `.sh` `.sql` | Plain text |
 | anything else | Download |

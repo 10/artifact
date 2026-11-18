@@ -166,9 +166,13 @@ const Stdin = "-"
 // prefers: no multipart framing, no buffering.
 func sendFile[T any](ctx context.Context, c *Client, method, target, path string) (*T, []byte, error) {
 	if path == Stdin {
-		// The length is unknown until the input ends, so the body goes out
-		// chunked and the server enforces its size cap as it streams.
-		return sendBody[T](ctx, c, method, target, os.Stdin, -1)
+		spooled, err := spoolStdin()
+		if err != nil {
+			return nil, nil, err
+		}
+		defer os.Remove(spooled)
+
+		path = spooled
 	}
 
 	// The *PathError from os already names the operation and the path.
@@ -187,19 +191,38 @@ func sendFile[T any](ctx context.Context, c *Client, method, target, path string
 		return nil, nil, fmt.Errorf("%s is a directory", path)
 	}
 
-	return sendBody[T](ctx, c, method, target, f, info.Size())
-}
-
-func sendBody[T any](ctx context.Context, c *Client, method, target string, body io.Reader, size int64) (*T, []byte, error) {
-	req, err := c.request(ctx, method, target, body)
+	req, err := c.request(ctx, method, target, f)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	req.ContentLength = size
+	req.ContentLength = info.Size()
 	req.Header.Set("Content-Type", "application/octet-stream")
 
 	return decode[T](c.do(req))
+}
+
+// spoolStdin copies standard input to a temporary file and returns its path.
+// Streaming it instead would put the producing command's whole run under the
+// client's timeout, cutting off a long build along with its log.
+func spoolStdin() (string, error) {
+	f, err := os.CreateTemp("", "artifact-stdin-*")
+	if err != nil {
+		return "", fmt.Errorf("spool stdin: %w", err)
+	}
+
+	_, err = io.Copy(f, os.Stdin)
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
+
+	if err != nil {
+		os.Remove(f.Name())
+
+		return "", fmt.Errorf("spool stdin: %w", err)
+	}
+
+	return f.Name(), nil
 }
 
 func (c *Client) request(ctx context.Context, method, target string, body io.Reader) (*http.Request, error) {

@@ -159,9 +159,18 @@ func (c *Client) Delete(ctx context.Context, id string) error {
 	return err
 }
 
+// Stdin is the path that names standard input rather than a file.
+const Stdin = "-"
+
 // sendFile streams a local file as a raw request body, the form the API
 // prefers: no multipart framing, no buffering.
 func sendFile[T any](ctx context.Context, c *Client, method, target, path string) (*T, []byte, error) {
+	if path == Stdin {
+		// The length is unknown until the input ends, so the body goes out
+		// chunked and the server enforces its size cap as it streams.
+		return sendBody[T](ctx, c, method, target, os.Stdin, -1)
+	}
+
 	// The *PathError from os already names the operation and the path.
 	f, err := os.Open(path)
 	if err != nil {
@@ -178,12 +187,16 @@ func sendFile[T any](ctx context.Context, c *Client, method, target, path string
 		return nil, nil, fmt.Errorf("%s is a directory", path)
 	}
 
-	req, err := c.request(ctx, method, target, f)
+	return sendBody[T](ctx, c, method, target, f, info.Size())
+}
+
+func sendBody[T any](ctx context.Context, c *Client, method, target string, body io.Reader, size int64) (*T, []byte, error) {
+	req, err := c.request(ctx, method, target, body)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	req.ContentLength = info.Size()
+	req.ContentLength = size
 	req.Header.Set("Content-Type", "application/octet-stream")
 
 	return decode[T](c.do(req))

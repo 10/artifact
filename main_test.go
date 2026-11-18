@@ -152,6 +152,42 @@ func TestUpSubcommandFormMatchesBareForm(t *testing.T) {
 	}
 }
 
+func TestUpPublishesStandardInput(t *testing.T) {
+	c := newCLI(t)
+
+	const log = "ok  pkg/a\nFAIL pkg/b\n"
+
+	stdin, err := os.Open(c.writeFile("piped", log))
+	if err != nil {
+		t.Fatalf("open stdin file: %v", err)
+	}
+	defer stdin.Close()
+
+	saved := os.Stdin
+	os.Stdin = stdin
+
+	t.Cleanup(func() { os.Stdin = saved })
+
+	code, stdout, stderr := c.run(c.connected("--json", "--filename", "test.log", "-")...)
+	if code != exitOK {
+		t.Fatalf("exit = %d, want 0 (stderr %q)", code, stderr)
+	}
+
+	var resp struct {
+		Filename    string `json:"filename"`
+		ContentType string `json:"content_type"`
+		Size        int64  `json:"size"`
+	}
+
+	if err := json.Unmarshal([]byte(stdout), &resp); err != nil {
+		t.Fatalf("decode %q: %v", stdout, err)
+	}
+
+	if resp.Filename != "test.log" || resp.Size != int64(len(log)) || resp.ContentType != "text/plain; charset=utf-8" {
+		t.Errorf("published %+v, want test.log, %d bytes, text/plain", resp, len(log))
+	}
+}
+
 func TestJSONEmitsTheResponseObjectAndNothingElse(t *testing.T) {
 	c := newCLI(t)
 	file := c.writeFile("report.html", "<h1>hi</h1>")
@@ -288,6 +324,11 @@ func TestExitCodes(t *testing.T) {
 			name: "unreadable file",
 			args: func(c *cliEnv) []string { return c.connected("/no/such/file.txt") },
 			want: exitError,
+		},
+		{
+			name: "standard input without a filename",
+			args: func(c *cliEnv) []string { return c.connected("-") },
+			want: exitUsage,
 		},
 		{
 			name: "unknown flag",

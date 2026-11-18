@@ -8,6 +8,7 @@ Consulted on demand. The operating loop is in [SKILL.md](SKILL.md).
 | --- | --- |
 | `artifact <file>` | Publish; prints the URL. `up` is the default command, so the subcommand is optional |
 | `artifact up <file>` | Same, and the form that accepts `--slug` |
+| `artifact --filename <name> -` | Publish standard input. `--filename` is required, because its extension decides how the URL renders |
 | `artifact update <id> <file>` | Publish new content as the next version; the URL is unchanged |
 | `artifact list` | Recent artifacts, newest first, as a table |
 | `artifact info <id>` | Metadata and full version history |

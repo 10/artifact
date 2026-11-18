@@ -199,18 +199,23 @@ func (c *cmdContext) table() *tabwriter.Writer {
 
 // UpCmd publishes a new artifact.
 type UpCmd struct {
-	File     string `arg:"" type:"path" help:"File to publish."`
+	File     string `arg:"" type:"path" help:"File to publish, or - for standard input."`
 	Slug     string `help:"Publish at a stable path instead of a random ID." placeholder:"SLUG"`
 	Filename string `help:"Override the filename recorded for the upload." placeholder:"NAME"`
 }
 
 func (u *UpCmd) Run(c *cmdContext) error {
+	filename, err := filenameFor(u.Filename, u.File)
+	if err != nil {
+		return err
+	}
+
 	api, err := c.api()
 	if err != nil {
 		return err
 	}
 
-	art, raw, err := api.Upload(c.ctx, u.File, filenameFor(u.Filename, u.File), u.Slug)
+	art, raw, err := api.Upload(c.ctx, u.File, filename, u.Slug)
 	if err != nil {
 		return err
 	}
@@ -221,17 +226,22 @@ func (u *UpCmd) Run(c *cmdContext) error {
 // UpdateCmd adds a version to an existing artifact, leaving its URL alone.
 type UpdateCmd struct {
 	ID       string `arg:"" help:"Artifact ID or slug."`
-	File     string `arg:"" type:"path" help:"File to publish as the next version."`
+	File     string `arg:"" type:"path" help:"File to publish as the next version, or - for standard input."`
 	Filename string `help:"Override the filename recorded for the upload." placeholder:"NAME"`
 }
 
 func (u *UpdateCmd) Run(c *cmdContext) error {
+	filename, err := filenameFor(u.Filename, u.File)
+	if err != nil {
+		return err
+	}
+
 	api, err := c.api()
 	if err != nil {
 		return err
 	}
 
-	art, raw, err := api.Update(c.ctx, u.ID, u.File, filenameFor(u.Filename, u.File))
+	art, raw, err := api.Update(c.ctx, u.ID, u.File, filename)
 	if err != nil {
 		return err
 	}
@@ -409,12 +419,18 @@ func openBrowser(target string) error {
 	return nil
 }
 
-func filenameFor(override, path string) string {
+// filenameFor picks the recorded filename, whose extension decides how the
+// URL renders. Standard input has no name, so it must be given one.
+func filenameFor(override, path string) (string, error) {
 	if override != "" {
-		return override
+		return override, nil
 	}
 
-	return filepath.Base(path)
+	if path == client.Stdin {
+		return "", usageError("publishing standard input needs --filename, whose extension decides how the URL renders")
+	}
+
+	return filepath.Base(path), nil
 }
 
 func orDash(s *string) string {

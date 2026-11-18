@@ -83,18 +83,18 @@ creates an artifact — no session, no handshake.
 
 ```bash
 FILE="$1"
+NAME=$(jq -rn --arg f "$(basename "$FILE")" '$f|@uri')
 curl -sS --fail-with-body -X POST \
   -H "Authorization: Bearer $ARTIFACT_TOKEN" \
   --data-binary "@$FILE" \
-  --url-query "filename=$(basename "$FILE")" \
-  "$ARTIFACT_ENDPOINT/api/upload" \
+  "$ARTIFACT_ENDPOINT/api/upload?filename=$NAME" \
   | jq -r '.url'
 ```
 
-`--url-query` (curl 7.87+) encodes the name, so a screenshot called
+`NAME` is encoded, so a screenshot called
 `Screenshot 2026-11-17 at 9.41.07 PM.png` still uploads. Add
-`--url-query slug=daily-report` for a stable URL. To publish a new version,
-`PUT` to `/api/artifacts/{id}` with the same body form.
+`&slug=daily-report` for a stable URL. To publish a new version, `PUT` to
+`/api/artifacts/{id}` with the same body form.
 
 ## API error codes
 

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -213,12 +214,21 @@ func spoolStdin() (*os.File, func(), error) {
 		return nil, nil, fmt.Errorf("spool stdin: %w", err)
 	}
 
-	unlinked := os.Remove(f.Name()) == nil
+	// Anywhere else, a spool that cannot be unlinked is refused before any
+	// input reaches it.
+	windows := runtime.GOOS == "windows"
+	if !windows {
+		if err := os.Remove(f.Name()); err != nil {
+			f.Close()
+
+			return nil, nil, fmt.Errorf("spool stdin: %w", err)
+		}
+	}
 
 	cleanup := func() {
 		f.Close()
 
-		if !unlinked {
+		if windows {
 			os.Remove(f.Name())
 		}
 	}

@@ -11,7 +11,6 @@ import (
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/10/artifact/internal/api"
 	"github.com/10/artifact/internal/store"
@@ -221,16 +220,26 @@ func TestStandardInputLeavesNothingOnDisk(t *testing.T) {
 		done <- code
 	}()
 
-	if _, err := w.WriteString("partial log\n"); err != nil {
-		t.Fatalf("write stdin: %v", err)
+	// More than a pipe holds, so once this write returns the CLI is copying
+	// and its spool file already exists.
+	wrote := make(chan error, 1)
+
+	go func() {
+		_, err := w.Write(make([]byte, 256<<10))
+		wrote <- err
+	}()
+
+	select {
+	case err := <-wrote:
+		if err != nil {
+			t.Fatalf("write stdin: %v", err)
+		}
+	case code := <-done:
+		t.Fatalf("CLI exited %d before reading its input", code)
 	}
 
-	for range 30 {
-		if entries, _ := os.ReadDir(tmp); len(entries) > 0 {
-			t.Fatalf("input is on disk while still arriving: %s", entries[0].Name())
-		}
-
-		time.Sleep(10 * time.Millisecond)
+	if entries, _ := os.ReadDir(tmp); len(entries) > 0 {
+		t.Fatalf("input is on disk while still arriving: %s", entries[0].Name())
 	}
 
 	w.Close()

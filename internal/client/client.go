@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -159,9 +160,27 @@ func (c *Client) Delete(ctx context.Context, id string) error {
 	return err
 }
 
+// Stdin is the path that names standard input rather than a file.
+const Stdin = "-"
+
 // sendFile streams a local file as a raw request body, the form the API
 // prefers: no multipart framing, no buffering.
 func sendFile[T any](ctx context.Context, c *Client, method, target, path string) (*T, []byte, error) {
+	if path == Stdin {
+		spool, cleanup, err := spoolStdin()
+		if err != nil {
+			return nil, nil, err
+		}
+		defer cleanup()
+
+		info, err := spool.Stat()
+		if err != nil {
+			return nil, nil, fmt.Errorf("spool stdin: %w", err)
+		}
+
+		return sendBody[T](ctx, c, method, target, spool, info.Size())
+	}
+
 	// The *PathError from os already names the operation and the path.
 	f, err := os.Open(path)
 	if err != nil {
@@ -178,12 +197,63 @@ func sendFile[T any](ctx context.Context, c *Client, method, target, path string
 		return nil, nil, fmt.Errorf("%s is a directory", path)
 	}
 
-	req, err := c.request(ctx, method, target, f)
+	return sendBody[T](ctx, c, method, target, f, info.Size())
+}
+
+// spoolStdin copies standard input to a temporary file and returns it
+// rewound. Sending input as it arrives would put the producing command's
+// whole run under the client's timeout, cutting off a long build along with
+// its log, and holding it in memory would cost several times its size.
+//
+// The file is unlinked before any input reaches it, so even an interrupted
+// run leaves no copy of the log behind. Windows cannot unlink an open file;
+// there, cleanup removes it after closing.
+func spoolStdin() (*os.File, func(), error) {
+	f, err := os.CreateTemp("", "artifact-stdin-*")
+	if err != nil {
+		return nil, nil, fmt.Errorf("spool stdin: %w", err)
+	}
+
+	// Anywhere else, a spool that cannot be unlinked is refused before any
+	// input reaches it.
+	windows := runtime.GOOS == "windows"
+	if !windows {
+		if err := os.Remove(f.Name()); err != nil {
+			f.Close()
+
+			return nil, nil, fmt.Errorf("spool stdin: %w", err)
+		}
+	}
+
+	cleanup := func() {
+		f.Close()
+
+		if windows {
+			os.Remove(f.Name())
+		}
+	}
+
+	_, err = io.Copy(f, os.Stdin)
+	if err == nil {
+		_, err = f.Seek(0, io.SeekStart)
+	}
+
+	if err != nil {
+		cleanup()
+
+		return nil, nil, fmt.Errorf("spool stdin: %w", err)
+	}
+
+	return f, cleanup, nil
+}
+
+func sendBody[T any](ctx context.Context, c *Client, method, target string, body io.Reader, size int64) (*T, []byte, error) {
+	req, err := c.request(ctx, method, target, body)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	req.ContentLength = info.Size()
+	req.ContentLength = size
 	req.Header.Set("Content-Type", "application/octet-stream")
 
 	return decode[T](c.do(req))

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -152,6 +153,102 @@ func TestUpSubcommandFormMatchesBareForm(t *testing.T) {
 	}
 }
 
+func TestUpPublishesStandardInput(t *testing.T) {
+	c := newCLI(t)
+
+	const log = "ok  pkg/a\nFAIL pkg/b\n"
+
+	stdin, err := os.Open(c.writeFile("piped", log))
+	if err != nil {
+		t.Fatalf("open stdin file: %v", err)
+	}
+	defer stdin.Close()
+
+	saved := os.Stdin
+	os.Stdin = stdin
+
+	t.Cleanup(func() { os.Stdin = saved })
+
+	code, stdout, stderr := c.run(c.connected("--json", "--filename", "test.log", "-")...)
+	if code != exitOK {
+		t.Fatalf("exit = %d, want 0 (stderr %q)", code, stderr)
+	}
+
+	var resp struct {
+		Filename    string `json:"filename"`
+		ContentType string `json:"content_type"`
+		Size        int64  `json:"size"`
+	}
+
+	if err := json.Unmarshal([]byte(stdout), &resp); err != nil {
+		t.Fatalf("decode %q: %v", stdout, err)
+	}
+
+	if resp.Filename != "test.log" || resp.Size != int64(len(log)) || resp.ContentType != "text/plain; charset=utf-8" {
+		t.Errorf("published %+v, want test.log, %d bytes, text/plain", resp, len(log))
+	}
+}
+
+// A piped log can carry secrets, so no copy of it may sit on disk under a
+// name, even while the input is still arriving.
+func TestStandardInputLeavesNothingOnDisk(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows cannot unlink an open file")
+	}
+
+	c := newCLI(t)
+	tmp := t.TempDir()
+	t.Setenv("TMPDIR", tmp)
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+
+	saved := os.Stdin
+	os.Stdin = r
+
+	t.Cleanup(func() {
+		os.Stdin = saved
+		r.Close()
+	})
+
+	done := make(chan int, 1)
+
+	go func() {
+		code, _, _ := c.run(c.connected("--filename", "build.log", "-")...)
+		done <- code
+	}()
+
+	// More than a pipe holds, so once this write returns the CLI is copying
+	// and its spool file already exists.
+	wrote := make(chan error, 1)
+
+	go func() {
+		_, err := w.Write(make([]byte, 256<<10))
+		wrote <- err
+	}()
+
+	select {
+	case err := <-wrote:
+		if err != nil {
+			t.Fatalf("write stdin: %v", err)
+		}
+	case code := <-done:
+		t.Fatalf("CLI exited %d before reading its input", code)
+	}
+
+	if entries, _ := os.ReadDir(tmp); len(entries) > 0 {
+		t.Fatalf("input is on disk while still arriving: %s", entries[0].Name())
+	}
+
+	w.Close()
+
+	if code := <-done; code != exitOK {
+		t.Fatalf("exit = %d, want 0", code)
+	}
+}
+
 func TestJSONEmitsTheResponseObjectAndNothingElse(t *testing.T) {
 	c := newCLI(t)
 	file := c.writeFile("report.html", "<h1>hi</h1>")
@@ -288,6 +385,11 @@ func TestExitCodes(t *testing.T) {
 			name: "unreadable file",
 			args: func(c *cliEnv) []string { return c.connected("/no/such/file.txt") },
 			want: exitError,
+		},
+		{
+			name: "standard input without a filename",
+			args: func(c *cliEnv) []string { return c.connected("-") },
+			want: exitUsage,
 		},
 		{
 			name: "unknown flag",

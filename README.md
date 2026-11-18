@@ -41,6 +41,7 @@ go build -o artifactd ./cmd/artifactd       # server, from a checkout
 
 ```bash
 artifact report.html                        # upload, print URL
+make 2>&1 | artifact --filename build.log - # standard input
 artifact up --slug daily-report report.md   # stable URL
 artifact update daily-report report.md      # new version, same URL
 artifact list --limit 20

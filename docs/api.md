@@ -164,3 +164,7 @@ See the URL scheme table in the [README](../README.md). Every artifact
 response carries `X-Content-Type-Options: nosniff` and a `Content-Disposition`
 header (`inline` for everything previewable, `attachment` for the
 `application/octet-stream` floor), encoded per RFC 6266.
+
+Bytes served as uploaded carry an `ETag` of their `sha256`. URLs without
+`@n` also send `Cache-Control: no-cache`, so a browser checks back after an
+update rather than showing the copy it already has.

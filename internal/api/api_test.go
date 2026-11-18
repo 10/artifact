@@ -969,6 +969,56 @@ func TestServeVersionIsFrozen(t *testing.T) {
 	}
 }
 
+func TestServeLatestRevalidatesAfterUpdate(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	first := h.upload("notes.txt", []byte("one"), nil)
+
+	resp, _ := h.get(first.URL)
+
+	if got := resp.Header.Get("Cache-Control"); got != "no-cache" {
+		t.Errorf("latest Cache-Control = %q, want no-cache", got)
+	}
+
+	etag := resp.Header.Get("ETag")
+	if etag != strconv.Quote(first.SHA256) {
+		t.Fatalf("ETag = %q, want the quoted sha256 %q", etag, first.SHA256)
+	}
+
+	lastModified := resp.Header.Get("Last-Modified")
+
+	resp, raw := h.send(h.authed(http.MethodPut,
+		"/api/artifacts/"+first.ID+"?filename=notes.txt", strings.NewReader("two")))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("update: status %d (body %s)", resp.StatusCode, raw)
+	}
+
+	// A browser holding version 1 sends both validators. The two versions can
+	// share a Last-Modified second, so only the ETag can tell them apart.
+	req := h.request(http.MethodGet, pathOf(t, first.URL), nil)
+	req.Header.Set("If-None-Match", etag)
+	req.Header.Set("If-Modified-Since", lastModified)
+
+	resp, body := h.send(req)
+	if resp.StatusCode != http.StatusOK || string(body) != "two" {
+		t.Fatalf("revalidating a stale copy = %d %q, want 200 \"two\"", resp.StatusCode, body)
+	}
+
+	req = h.request(http.MethodGet, pathOf(t, first.URL), nil)
+	req.Header.Set("If-None-Match", resp.Header.Get("ETag"))
+
+	if resp, _ = h.send(req); resp.StatusCode != http.StatusNotModified {
+		t.Errorf("revalidating a current copy = %d, want 304", resp.StatusCode)
+	}
+
+	// A pinned version never changes, so ordinary caching is left alone.
+	resp, _ = h.get(first.VersionURL)
+	if got := resp.Header.Get("Cache-Control"); got != "" {
+		t.Errorf("@1 Cache-Control = %q, want none", got)
+	}
+}
+
 // ---------------------------------------------------------------- range
 
 func TestRangeRequest(t *testing.T) {

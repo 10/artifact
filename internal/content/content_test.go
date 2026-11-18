@@ -31,6 +31,7 @@ func TestResolveByExtension(t *testing.T) {
 		{"tune.mp3", "audio/mpeg"},
 		{"tune.wav", "audio/wav"},
 		{"tune.m4a", "audio/mp4"},
+		{"memo.caf", "audio/x-caf"},
 		{"paper.pdf", "application/pdf"},
 		{"notes.txt", content.TypeText},
 		{"build.log", content.TypeText},

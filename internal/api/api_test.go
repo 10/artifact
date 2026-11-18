@@ -767,6 +767,7 @@ func TestServeContentTypeTable(t *testing.T) {
 		{"tune.mp3", []byte("ID3"), "audio/mpeg", "inline"},
 		{"tune.wav", []byte("RIFF"), "audio/wav", "inline"},
 		{"tune.m4a", []byte("ftyp"), "audio/mp4", "inline"},
+		{"memo.caf", []byte("caff"), "audio/x-caf", "inline"},
 		{"paper.pdf", []byte("%PDF-1.4"), "application/pdf", "inline"},
 		{"build.log", []byte("line one\n"), "text/plain; charset=utf-8", "inline"},
 		{"notes.txt", []byte("hello"), "text/plain; charset=utf-8", "inline"},

@@ -55,6 +55,7 @@ var byExtension = map[string]string{
 	".mp3": "audio/mpeg",
 	".wav": "audio/wav",
 	".m4a": "audio/mp4",
+	".caf": "audio/x-caf",
 
 	".pdf": "application/pdf",
 

@@ -159,11 +159,11 @@ backups: [SETUP.md](SETUP.md).
 ## Agents
 
 ```bash
-cp -r skills/artifact ~/.claude/skills/artifact
+cp -r skills/artifact-cli ~/.claude/skills/artifact-cli
 ```
 
-[`SKILL.md`](skills/artifact/SKILL.md) drives the CLI;
-[`REFERENCE.md`](skills/artifact/REFERENCE.md) has the full surface. Both read
+[`SKILL.md`](skills/artifact-cli/SKILL.md) drives the CLI;
+[`REFERENCE.md`](skills/artifact-cli/REFERENCE.md) has the full surface. Both read
 `ARTIFACT_ENDPOINT` and `ARTIFACT_TOKEN` from the environment.
 
 ## Layout
@@ -179,7 +179,7 @@ artifact/
 │   ├── render/               # Markdown rendering, page template
 │   ├── content/              # filename sanitization, content types
 │   └── client/               # HTTP client used by the CLI
-├── skills/artifact/          # agent skill
+├── skills/artifact-cli/      # agent skill
 └── docs/                     # HTTP API reference
 ```
 

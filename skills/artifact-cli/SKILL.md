@@ -1,5 +1,5 @@
 ---
-name: artifact
+name: artifact-cli
 description: Publish a file to a shareable URL with the `artifact` CLI. Use when the user asks to publish, share, upload, or get a link for something — an HTML report, Markdown doc, screenshot, screen recording, PDF, or log.
 ---
 
